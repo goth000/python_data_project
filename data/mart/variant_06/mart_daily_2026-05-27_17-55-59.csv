@@ -1,0 +1,8 @@
+date,city_id,city_name,country_code,timezone,t_mean,t_max,precipitation_sum,rainy_hours,wind_speed_max
+2024-05-01,JP_TYO,Токио,JP,Asia/Tokyo,17.133333333333333,19.9,37.3,18,26.5
+2024-05-02,JP_TYO,Токио,JP,Asia/Tokyo,14.762500000000001,19.9,6.8,7,26.9
+2024-05-03,JP_TYO,Токио,JP,Asia/Tokyo,15.799999999999999,21.9,0.0,0,27.7
+2024-05-04,JP_TYO,Токио,JP,Asia/Tokyo,18.829166666666666,26.5,0.0,0,22.1
+2024-05-05,JP_TYO,Токио,JP,Asia/Tokyo,19.787499999999998,26.3,0.0,0,36.4
+2024-05-06,JP_TYO,Токио,JP,Asia/Tokyo,19.724999999999998,22.2,0.0,0,44.9
+2024-05-07,JP_TYO,Токио,JP,Asia/Tokyo,20.016666666666666,21.6,15.6,14,50.0
