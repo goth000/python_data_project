@@ -706,3 +706,17 @@ Open-Meteo API
 ```
 
 Управление выполнением осуществляется через Apache Airflow.
+
+## Week 13 — ML Basics and Data Leakage
+
+Выполнено:
+
+- рассмотрено понятие Data Leakage;
+- реализован пример некорректного leakage;
+- реализован исправленный вариант;
+- выполнен time-based train/test split;
+- построен baseline (DummyRegressor);
+- обучена модель Linear Regression;
+- рассчитаны метрики MAE и R²;
+- выполнена визуализация прогнозов;
+- проведён анализ результатов модели.
