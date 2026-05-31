@@ -13,8 +13,8 @@ DB_CONFIG = {
     "host": "localhost",
     "port": 5432,
     "database": "analytics",
-    "user": "postgres",
-    "password": "postgres",
+    "user": "student",
+    "password": "student_pw",
 }
 
 
