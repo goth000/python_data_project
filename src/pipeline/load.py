@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -10,11 +11,11 @@ MART_DIR = PROJECT_ROOT / "data" / "mart" / "variant_06"
 
 
 DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "analytics",
-    "user": "student",
-    "password": "student_pw",
+    "host": os.getenv("POSTGRES_HOST", "localhost"),
+    "port": int(os.getenv("POSTGRES_PORT", "5432")),
+    "database": os.getenv("POSTGRES_DB", "analytics"),
+    "user": os.getenv("POSTGRES_USER", "student"),
+    "password": os.getenv("POSTGRES_PASSWORD", "student_pw"),
 }
 
 
