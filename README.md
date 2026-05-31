@@ -509,3 +509,200 @@ Docker:
 docker compose up -d
 docker compose ps
 ```
+# Week11 Airflow Orchestration
+
+На 11 неделе ETL pipeline был перенесён под управление Apache Airflow.
+
+## Цель
+
+Автоматизировать выполнение всех этапов ETL и обеспечить их последовательный запуск по расписанию.
+
+Pipeline выполняется в следующем порядке:
+
+```text
+extract
+   ↓
+transform
+   ↓
+load
+   ↓
+dq
+```
+
+Каждая следующая задача запускается только после успешного завершения предыдущей.
+
+---
+
+## Airflow Infrastructure
+
+Airflow запускается в Docker Compose вместе с PostgreSQL и Metabase.
+
+Используемые сервисы:
+
+```text
+postgres
+metabase
+airflow-db
+airflow-scheduler
+airflow-webserver
+```
+
+Проверка состояния сервисов:
+
+```cmd
+docker compose ps
+```
+
+Airflow Web UI:
+
+```text
+http://localhost:8080
+```
+
+Логин:
+
+```text
+airflow
+```
+
+Пароль:
+
+```text
+airflow
+```
+
+---
+
+## DAG
+
+Основной DAG проекта:
+
+```text
+airflow/dags/etl_variant_06.py
+```
+
+Задачи DAG:
+
+### extract
+
+Получение данных Open-Meteo API.
+
+Скрипт:
+
+```text
+src/pipeline/extract.py
+```
+
+### transform
+
+Нормализация данных и построение витрины.
+
+Скрипты:
+
+```text
+src/pipeline/normalize.py
+src/pipeline/mart.py
+```
+
+### load
+
+Загрузка витрины в PostgreSQL.
+
+Скрипт:
+
+```text
+src/pipeline/load.py
+```
+
+### dq
+
+Проверка качества данных после загрузки.
+
+Скрипт:
+
+```text
+src/pipeline/dq.py
+```
+
+---
+
+## PostgreSQL Integration
+
+Для работы внутри Docker-сети Airflow использует имя сервиса Postgres:
+
+```text
+postgres
+```
+
+а не:
+
+```text
+localhost
+```
+
+Подключение передается через переменные окружения:
+
+```text
+POSTGRES_HOST
+POSTGRES_PORT
+POSTGRES_DB
+POSTGRES_USER
+POSTGRES_PASSWORD
+```
+
+Это позволяет одному и тому же коду работать как локально, так и внутри контейнеров.
+
+---
+
+## Data Quality
+
+После загрузки данных автоматически запускаются проверки качества данных.
+
+Проверяются:
+
+* наличие строк;
+* отсутствие пустых значений в ключевых полях;
+* корректность структуры витрины;
+* готовность данных для аналитики.
+
+---
+
+## Airflow Artifacts
+
+Скриншоты работы Airflow находятся в:
+
+```text
+docs/airflow/
+```
+
+Содержимое:
+
+```text
+docs/airflow/
+├── airflow_dags.png
+├── airflow_graph.png
+├── docker_compose_ps.png
+└── docker_volume_ls.png
+```
+
+---
+
+## Result
+
+К завершению недели реализован полностью автоматизированный ETL pipeline:
+
+```text
+Open-Meteo API
+        ↓
+      RAW
+        ↓
+   NORMALIZED
+        ↓
+      MART
+        ↓
+   PostgreSQL
+        ↓
+  Data Quality
+```
+
+Управление выполнением осуществляется через Apache Airflow.
