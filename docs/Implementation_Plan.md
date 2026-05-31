@@ -305,3 +305,301 @@ date + city_id
 - PostgreSQL таблица перезаписывается через replace strategy;
 - state и watermark обновляются безопасно;
 - повторный incremental запуск сохраняет стабильный результат.
+
+# Week 6 — Data Quality Framework
+
+## Цель
+
+Реализовать автоматизированные проверки качества данных для аналитической витрины.
+
+## Выполненные задачи
+
+* Реализирован модуль:
+
+src/pipeline/dq.py
+
+* Добавлены проверки:
+
+  * non-empty dataset;
+  * not-null business fields;
+  * uniqueness business key;
+  * temperature range validation;
+  * precipitation validation;
+  * wind speed validation.
+
+* Формируется отчет:
+
+docs/dq_report.json
+
+## Проверяемые поля
+
+* date
+* city_id
+* t_mean
+* precipitation_sum
+* wind_speed_max
+
+## Результат
+
+После каждого запуска pipeline автоматически выполняются DQ проверки и формируется отчет о качестве данных.
+
+---
+
+# Week 7 — Data Visualization
+
+## Цель
+
+Выполнить визуальный анализ погодных данных.
+
+## Выполненные задачи
+
+* Создан notebook:
+
+notebooks/week7_viz.ipynb
+
+* Построены визуализации:
+
+  * временной ряд температуры;
+  * распределение температуры;
+  * рейтинг погодных показателей;
+  * диагностика временных рядов.
+
+* Графики сохранены в:
+
+docs/figures/
+
+## Результат
+
+Получены визуальные артефакты для анализа погодных данных и подготовки BI отчетности.
+
+---
+
+# Week 8 — State Management и Watermark
+
+## Цель
+
+Подготовить пайплайн к инкрементальной обработке данных.
+
+## Выполненные задачи
+
+* Реализовано хранение состояния пайплайна:
+
+data/state/state_variant_06.json
+
+* Добавлены:
+
+  * last_watermark;
+  * last_successful_run;
+  * business_key;
+  * source metadata.
+
+* Реализовано безопасное обновление state после успешного завершения pipeline.
+
+## Результат
+
+Pipeline поддерживает концепцию watermark и готов к incremental processing.
+
+---
+
+# Week 9 — Incremental Processing
+
+## Цель
+
+Реализовать инкрементальную обработку данных.
+
+## Выполненные задачи
+
+* Определен watermark:
+
+date + city_id
+
+* Реализована логика повторного запуска без появления логических дублей.
+* Добавлена поддержка incremental режима.
+* Реализована безопасная работа со state файлами.
+
+## Результат
+
+Pipeline поддерживает incremental execution и повторные запуски.
+
+---
+
+# Week 10 — Docker и Metabase
+
+## Цель
+
+Контейнеризировать аналитическую платформу и подключить BI слой.
+
+## Выполненные задачи
+
+* Установлен Docker Desktop.
+* Создан:
+
+docker-compose.yml
+
+* Поднят PostgreSQL контейнер.
+* Поднят Metabase контейнер.
+* Настроено хранение данных через Docker Volumes.
+
+Созданные volumes:
+
+* pgdata
+* metabase_data
+
+## BI Integration
+
+Metabase подключен к PostgreSQL:
+
+mart_open_meteo
+
+Построены:
+
+* табличные отчеты;
+* фильтрация данных;
+* визуальный анализ KPI.
+
+## Результат
+
+Проект получил полноценный BI слой через Metabase.
+
+---
+
+# Week 11 — Airflow Orchestration
+
+## Цель
+
+Автоматизировать выполнение ETL pipeline через Apache Airflow.
+
+## Выполненные задачи
+
+* Установлен Apache Airflow 2.9.
+
+* Настроен запуск через Docker Compose.
+
+* Созданы сервисы:
+
+  * airflow-webserver;
+  * airflow-scheduler;
+  * airflow-db.
+
+* Реализован DAG:
+
+airflow/dags/etl_variant_06.py
+
+## DAG Structure
+
+Pipeline состоит из задач:
+
+extract
+↓
+transform
+↓
+load
+↓
+dq
+
+## Airflow Features
+
+* автоматическое расписание;
+* task dependency management;
+* retry support;
+* execution logs;
+* monitoring через Airflow UI.
+
+## Результат
+
+Pipeline полностью оркестрируется через Apache Airflow.
+
+---
+
+# Week 12 — Retry Safety, Backfill и DQ Gate
+
+## Цель
+
+Подготовить Airflow pipeline к безопасным повторным запускам и backfill.
+
+## Выполненные задачи
+
+* Реализован DQ Gate перед загрузкой данных.
+* DQ проверки могут останавливать DAG при обнаружении ошибок.
+* Обновлен порядок задач:
+
+extract
+↓
+transform
+↓
+dq
+↓
+load
+
+* Добавлена поддержка логического периода выполнения через:
+
+{{ ds }}
+
+* Реализована retry-safe загрузка в PostgreSQL.
+
+## Retry Safety
+
+В load.py используется стратегия:
+
+if_exists="replace"
+
+Это предотвращает появление дублей при повторном запуске задач.
+
+## Backfill Safety
+
+Pipeline поддерживает запуск за прошлые интервалы без нарушения целостности данных.
+
+## Результат
+
+Airflow DAG безопасен для:
+
+* retries;
+* manual reruns;
+* backfill execution;
+* повторной загрузки данных.
+
+---
+
+# Финальная архитектура проекта
+
+Open-Meteo API
+↓
+Extract
+↓
+RAW JSON
+↓
+Normalize
+↓
+Normalized CSV
+↓
+Mart
+↓
+DQ Checks
+↓
+PostgreSQL
+↓
+Metabase
+↓
+Airflow Orchestration
+
+---
+
+# Итог проекта
+
+В рамках проекта реализована полноценная mini Data Platform:
+
+* API ingestion;
+* RAW layer;
+* NORMALIZED layer;
+* MART layer;
+* PostgreSQL storage;
+* SQL validation;
+* Data Quality framework;
+* State management;
+* Incremental processing;
+* Docker infrastructure;
+* Metabase BI layer;
+* Apache Airflow orchestration;
+* Retry-safe и backfill-safe execution.
+
+Проект является воспроизводимым, контейнеризированным и соответствует базовым практикам Data Engineering.
