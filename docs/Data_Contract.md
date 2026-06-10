@@ -1,4 +1,12 @@
-_# Data Contract
+# Data Contract
+
+**Contract version:** 0.9
+
+**Variant:** 06
+
+**Source:** Open-Meteo Archive API
+
+**Timezone:** Asia/Tokyo
 
 ## Обзор проекта
 
@@ -90,14 +98,14 @@ data/normalized/variant_06/YYYY-MM-DD_HH-MM-SS.csv
 
 ## Схема normalized слоя
 
-| column | type | description |
-|---|---|---|
-| ts | datetime | время наблюдения |
-| temperature_2m | float | температура на 2м |
-| relative_humidity_2m | float | относительная влажность |
-| precipitation | float | количество осадков |
-| wind_speed_10m | float | скорость ветра |
-| city_id | string | идентификатор города |
+| column_name | dtype | nullable | unit | description |
+|---|---|---|---|---|
+| ts | datetime | no | Asia/Tokyo local time | Дата-время измерения |
+| temperature_2m | float | no | °C | Температура воздуха на высоте 2 м |
+| relative_humidity_2m | integer | no | % | Относительная влажность на высоте 2 м |
+| precipitation | float | no | mm | Количество осадков за час |
+| wind_speed_10m | float | no | km/h | Скорость ветра на высоте 10 м |
+| city_id | string | no | none | Идентификатор города |
 
 ---
 
@@ -131,18 +139,18 @@ data/mart/variant_06/mart_daily_YYYY-MM-DD_HH-MM-SS.csv
 
 ## Схема mart слоя
 
-| column | description |
-|---|---|
-| date | дата агрегации |
-| city_id | идентификатор города |
-| city_name | название города |
-| country_code | код страны |
-| timezone | временная зона |
-| t_mean | средняя температура за день |
-| t_max | максимальная температура за день |
-| precipitation_sum | сумма осадков за день |
-| rainy_hours | количество дождливых часов |
-| wind_speed_max | максимальная скорость ветра |
+| column_name | dtype | nullable | unit | description |
+|---|---|---|---|---|
+| date | date | no | YYYY-MM-DD | Дата дневной агрегации |
+| city_id | string | no | none | Идентификатор города |
+| city_name | string | no | none | Название города |
+| country_code | string | no | ISO 3166-1 alpha-2 | Код страны |
+| timezone | string | no | IANA timezone | Временная зона наблюдений |
+| t_mean | float | no | °C | Средняя температура за день |
+| t_max | float | no | °C | Максимальная температура за день |
+| precipitation_sum | float | no | mm | Суммарное количество осадков за день |
+| rainy_hours | integer | no | hours | Количество часов с осадками |
+| wind_speed_max | float | no | km/h | Максимальная скорость ветра за день |
 
 ---
 
@@ -449,29 +457,19 @@ df["x"].notna().all()
 
 # Week 9 — Data Governance
 
-## Contract Version
-
-Текущая версия контракта:
-
-```text
-0.9
-```
-
----
-
 ## Changelog
 
-| version | date | change |
-|---|---|---|
-| 0.1 | 2026-03 | initial raw layer |
-| 0.2 | 2026-03 | added normalized schema |
-| 0.3 | 2026-03 | added mart schema |
-| 0.4 | 2026-04 | added PostgreSQL layer |
-| 0.5 | 2026-04 | added incremental processing |
-| 0.6 | 2026-04 | documented visualization layer |
-| 0.7 | 2026-04 | added DQ checks |
-| 0.8 | 2026-04 | added unit tests |
-| 0.9 | 2026-04 | added governance metadata and naming rules |
+| version | date | change | reason |
+|---|---|---|---|
+| 0.1 | 2026-03 | Initial raw layer | Preserve source responses |
+| 0.2 | 2026-03 | Added normalized schema | Define typed hourly observations |
+| 0.3 | 2026-03 | Added mart schema | Support daily analytics |
+| 0.4 | 2026-04 | Added PostgreSQL layer | Make mart queryable |
+| 0.5 | 2026-04 | Added incremental processing | Process only new dates |
+| 0.6 | 2026-04 | Documented visualization layer | Explain analytical outputs |
+| 0.7 | 2026-04 | Added DQ checks | Detect invalid data automatically |
+| 0.8 | 2026-04 | Added unit tests | Verify DQ functions |
+| 0.9 | 2026-04 | Added complete schemas and governance rules | Keep contract and code aligned |
 
 ---
 
@@ -485,7 +483,7 @@ df["x"].notna().all()
 | *_id | идентификаторы заканчиваются на `_id` |
 | date | дата хранится в поле `date` |
 | запрещены value/metric1 | запрещены неоднозначные названия |
-| KPI naming | KPI поля используют префиксы `avg_`, `sum_`, `max_`, `cnt_` |
+| KPI naming | KPI используют понятное имя метрики и агрегирующий суффикс: `_mean`, `_sum`, `_max`, `_hours` |
 
 ---
 
@@ -501,18 +499,6 @@ df["x"].notna().all()
 | wind_speed_10m | km/h |
 | wind_speed_max | km/h |
 | relative_humidity_2m | % |
-
----
-
-## Nullable Rules
-
-| column | nullable |
-|---|---|
-| date | no |
-| city_id | no |
-| city_name | no |
-| country_code | no |
-| timezone | no |
 
 ---
 
@@ -549,7 +535,8 @@ docs/data_dictionary.md
 - вручную;
 - через DQ проверки;
 - через unit tests;
-- через schema validation.
+- через `src/pipeline/schema_check.py`, который читает схемы из `configs/variant_06.yml`
+  и проверяет названия, порядок, типы и nullable для normalized и mart.
 
 ---
 

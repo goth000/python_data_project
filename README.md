@@ -377,6 +377,13 @@ docs/data_dictionary.md
 src/pipeline/schema_check.py
 ```
 
+Сверка mart и normalized с машинным контрактом:
+
+```cmd
+conda run -n python_data_project_env python src/pipeline/schema_check.py --layer mart
+conda run -n python_data_project_env python src/pipeline/schema_check.py --layer normalized
+```
+
 Диагностический скрипт:
 
 ```text

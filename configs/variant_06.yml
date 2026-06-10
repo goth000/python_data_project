@@ -25,23 +25,86 @@ api:
   notes: Ключ не требуется. Даты задаются параметрами start_date/end_date для archive.
 normalized_schema:
 - name: ts
-  type: timestamp
-  desc: Дата-время измерения (локальная TZ).
+  dtype: datetime
+  nullable: false
+  unit: Asia/Tokyo local time
+  description: Дата-время измерения.
 - name: temperature_2m
-  type: float
-  desc: Температура на 2м, °C.
+  dtype: float
+  nullable: false
+  unit: °C
+  description: Температура воздуха на высоте 2 м.
 - name: relative_humidity_2m
-  type: float
-  desc: Отн. влажность, %.
+  dtype: integer
+  nullable: false
+  unit: '%'
+  description: Относительная влажность на высоте 2 м.
 - name: precipitation
-  type: float
-  desc: Осадки, мм.
+  dtype: float
+  nullable: false
+  unit: mm
+  description: Количество осадков за час.
 - name: wind_speed_10m
-  type: float
-  desc: Скорость ветра, км/ч или м/с (уточнить в docs).
+  dtype: float
+  nullable: false
+  unit: km/h
+  description: Скорость ветра на высоте 10 м.
 - name: city_id
-  type: string
-  desc: ID города из reference/cities.csv.
+  dtype: string
+  nullable: false
+  unit: none
+  description: Идентификатор города из reference/cities.csv.
+mart_schema:
+- name: date
+  dtype: date
+  nullable: false
+  unit: YYYY-MM-DD
+  description: Дата дневной агрегации в timezone города.
+- name: city_id
+  dtype: string
+  nullable: false
+  unit: none
+  description: Идентификатор города.
+- name: city_name
+  dtype: string
+  nullable: false
+  unit: none
+  description: Название города.
+- name: country_code
+  dtype: string
+  nullable: false
+  unit: ISO 3166-1 alpha-2
+  description: Двухбуквенный код страны.
+- name: timezone
+  dtype: string
+  nullable: false
+  unit: IANA timezone
+  description: Временная зона наблюдений.
+- name: t_mean
+  dtype: float
+  nullable: false
+  unit: °C
+  description: Средняя температура за день.
+- name: t_max
+  dtype: float
+  nullable: false
+  unit: °C
+  description: Максимальная температура за день.
+- name: precipitation_sum
+  dtype: float
+  nullable: false
+  unit: mm
+  description: Суммарное количество осадков за день.
+- name: rainy_hours
+  dtype: integer
+  nullable: false
+  unit: hours
+  description: Количество часов с осадками больше нуля.
+- name: wind_speed_max
+  dtype: float
+  nullable: false
+  unit: km/h
+  description: Максимальная скорость ветра за день.
 kpis:
 - Средняя температура по дням (T_mean).
 - Суммарные осадки по дням (P_sum).

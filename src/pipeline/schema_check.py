@@ -1,81 +1,106 @@
+import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-MART_DIR = PROJECT_ROOT / "data" / "mart" / "variant_06"
+
+def load_config(config_path: Path) -> dict:
+    with open(config_path, "r", encoding="utf-8") as file:
+        return yaml.safe_load(file)
 
 
-EXPECTED_COLUMNS = [
-    "date",
-    "city_id",
-    "city_name",
-    "country_code",
-    "timezone",
-    "t_mean",
-    "t_max",
-    "precipitation_sum",
-    "rainy_hours",
-    "wind_speed_max",
-]
+def get_data_path(config: dict, layer: str, path_argument: str | None) -> Path:
+    if path_argument:
+        return PROJECT_ROOT / path_argument
 
+    variant_id = str(config["variant_id"]).zfill(2)
+    if layer == "mart":
+        state_path = PROJECT_ROOT / "data" / "state" / f"state_variant_{variant_id}.json"
+        if state_path.exists():
+            with open(state_path, "r", encoding="utf-8") as file:
+                return PROJECT_ROOT / json.load(file)["last_mart_file"]
+        pattern = "mart_daily_*.csv"
+    else:
+        pattern = "*.csv"
 
-def get_latest_mart_file() -> Path:
-    files = sorted(MART_DIR.glob("mart_daily_*.csv"))
-
+    data_dir = PROJECT_ROOT / "data" / layer / f"variant_{variant_id}"
+    files = sorted(data_dir.glob(pattern))
     if not files:
-        raise FileNotFoundError("No mart files found")
-
+        raise FileNotFoundError(f"No {layer} files found in {data_dir}")
     return files[-1]
 
 
-def check_schema(df: pd.DataFrame) -> bool:
+def dtype_matches(series: pd.Series, expected: str) -> bool:
+    if expected == "string":
+        return pd.api.types.is_string_dtype(series)
+    if expected == "integer":
+        return pd.api.types.is_integer_dtype(series)
+    if expected == "float":
+        return pd.api.types.is_float_dtype(series)
+    if expected in {"date", "datetime"}:
+        return pd.to_datetime(series, errors="coerce").notna().all()
+    raise ValueError(f"Unsupported contract dtype: {expected}")
+
+
+def check_schema(df: pd.DataFrame, contract: list[dict]) -> bool:
+    expected_columns = [field["name"] for field in contract]
     actual_columns = list(df.columns)
+    passed = True
 
-    missing_columns = [
-        column for column in EXPECTED_COLUMNS
-        if column not in actual_columns
-    ]
+    missing = [column for column in expected_columns if column not in actual_columns]
+    extra = [column for column in actual_columns if column not in expected_columns]
 
-    extra_columns = [
-        column for column in actual_columns
-        if column not in EXPECTED_COLUMNS
-    ]
+    print("[INFO] expected columns:", expected_columns)
+    print("[INFO] actual columns:", actual_columns)
 
-    print("[INFO] expected columns:")
-    print(EXPECTED_COLUMNS)
+    if missing:
+        print("[FAIL] Missing columns:", missing)
+        passed = False
+    if extra:
+        print("[WARNING] Extra columns:", extra)
+    if actual_columns[: len(expected_columns)] != expected_columns:
+        print("[FAIL] Contract columns are missing or in the wrong order")
+        passed = False
 
-    print("\n[INFO] actual columns:")
-    print(actual_columns)
+    for field in contract:
+        column = field["name"]
+        if column not in df.columns:
+            continue
+        if not dtype_matches(df[column], field["dtype"]):
+            print(
+                f"[FAIL] {column}: expected dtype={field['dtype']}, "
+                f"actual dtype={df[column].dtype}"
+            )
+            passed = False
+        if not field["nullable"] and df[column].isna().any():
+            print(f"[FAIL] {column}: NULL values are not allowed")
+            passed = False
 
-    if missing_columns:
-        print("\n[FAIL] Missing columns:")
-        print(missing_columns)
-
-    if extra_columns:
-        print("\n[FAIL] Extra columns:")
-        print(extra_columns)
-
-    if actual_columns != EXPECTED_COLUMNS:
-        print("\n[FAIL] Column order or schema does not match contract")
-        return False
-
-    print("\n[PASS] Schema matches Data Contract")
-    return True
+    print("[PASS] Schema matches Data Contract" if passed else "[FAIL] Schema mismatch")
+    return passed
 
 
 def main() -> None:
-    mart_path = get_latest_mart_file()
+    parser = argparse.ArgumentParser(description="Validate a data layer against contract")
+    parser.add_argument("--config", default="configs/variant_06.yml")
+    parser.add_argument("--layer", choices=["normalized", "mart"], default="mart")
+    parser.add_argument("--data-path")
+    args = parser.parse_args()
 
-    print("[INFO] latest mart:", mart_path)
+    config = load_config(PROJECT_ROOT / args.config)
+    data_path = get_data_path(config, args.layer, args.data_path)
+    contract = config[f"{args.layer}_schema"]
 
-    df = pd.read_csv(mart_path)
+    print(f"[INFO] layer: {args.layer}")
+    print(f"[INFO] data: {data_path}")
+    df = pd.read_csv(data_path)
 
-    is_valid = check_schema(df)
-
-    if not is_valid:
+    if not check_schema(df, contract):
         raise SystemExit(1)
 
 
