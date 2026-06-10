@@ -109,7 +109,16 @@ def build_normalized_dataframe(hourly: dict, city_id: str) -> tuple[pd.DataFrame
     return df, duplicate_count
 
 
-def save_normalized_csv(df: pd.DataFrame, variant_id: str) -> Path:
+def save_normalized_csv(
+    df: pd.DataFrame,
+    variant_id: str,
+    output_path: Path | None = None,
+) -> Path:
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(output_path, index=False, encoding="utf-8")
+        return output_path
+
     output_dir = NORMALIZED_DIR / f"variant_{variant_id}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -124,6 +133,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Normalize the latest RAW file")
     parser.add_argument("--config", default="configs/variant_06.yml")
     parser.add_argument("--raw-path")
+    parser.add_argument("--output-path")
     args = parser.parse_args()
 
     config_path = PROJECT_ROOT / args.config
@@ -141,7 +151,11 @@ def main() -> None:
     data = load_raw_json(raw_path)
     hourly = validate_hourly_data(data)
     df, duplicate_count = build_normalized_dataframe(hourly, city_id)
-    output_path = save_normalized_csv(df, variant_id)
+    output_path = save_normalized_csv(
+        df,
+        variant_id,
+        PROJECT_ROOT / args.output_path if args.output_path else None,
+    )
 
     print(f"[INFO] Input rows: {len(hourly['time'])}")
     print(f"[INFO] Removed duplicate business keys: {duplicate_count}")

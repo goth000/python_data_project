@@ -39,7 +39,17 @@ def fetch_json(url: str, params: dict, timeout: int = 10) -> tuple[dict | None, 
         return None, 0
 
 
-def save_raw_json(data: dict, variant_id: str) -> Path:
+def save_raw_json(
+    data: dict,
+    variant_id: str,
+    output_path: Path | None = None,
+) -> Path:
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False, indent=2)
+        return output_path
+
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     folder_name = f"variant_{variant_id}"
 
@@ -59,6 +69,7 @@ def main() -> None:
     parser.add_argument("--config", default="configs/variant_06.yml")
     parser.add_argument("--start-date")
     parser.add_argument("--end-date")
+    parser.add_argument("--output-path")
     args = parser.parse_args()
 
     config_path = PROJECT_ROOT / args.config
@@ -85,7 +96,11 @@ def main() -> None:
     if data is None:
         raise RuntimeError("Extract failed: no data received")
 
-    output_path = save_raw_json(data, variant_id)
+    output_path = save_raw_json(
+        data,
+        variant_id,
+        PROJECT_ROOT / args.output_path if args.output_path else None,
+    )
 
     print("[OK] Extract completed")
     print(f"variant: variant_{variant_id}")

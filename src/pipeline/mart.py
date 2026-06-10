@@ -131,7 +131,16 @@ def build_daily_mart(df: pd.DataFrame) -> pd.DataFrame:
     return mart
 
 
-def save_mart(mart: pd.DataFrame, variant_id: str) -> Path:
+def save_mart(
+    mart: pd.DataFrame,
+    variant_id: str,
+    output_path: Path | None = None,
+) -> Path:
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        mart.to_csv(output_path, index=False, encoding="utf-8")
+        return output_path
+
     mart_dir = PROJECT_ROOT / "data" / "mart" / f"variant_{variant_id}"
     mart_dir.mkdir(parents=True, exist_ok=True)
 
@@ -147,6 +156,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build the daily MART")
     parser.add_argument("--config", default="configs/variant_06.yml")
     parser.add_argument("--normalized-path")
+    parser.add_argument("--output-path")
     args = parser.parse_args()
 
     config = load_config(PROJECT_ROOT / args.config)
@@ -177,7 +187,11 @@ def main() -> None:
     print(mart.head())
     print("[INFO] mart shape:", mart.shape)
 
-    output_path = save_mart(mart, variant_id)
+    output_path = save_mart(
+        mart,
+        variant_id,
+        PROJECT_ROOT / args.output_path if args.output_path else None,
+    )
 
     print("[OK] Mart saved:", output_path)
 

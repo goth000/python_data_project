@@ -80,7 +80,7 @@ def save_state(config: dict, mode: str, watermark: str, mart_path: Path) -> Path
         "mode": mode,
         "last_watermark": watermark,
         "business_key": ["date", "city_id"],
-        "last_mart_file": str(mart_path.relative_to(PROJECT_ROOT)),
+        "last_mart_file": mart_path.relative_to(PROJECT_ROOT).as_posix(),
         "last_successful_run": datetime.now().isoformat(timespec="seconds"),
     }
 

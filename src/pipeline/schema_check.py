@@ -23,7 +23,8 @@ def get_data_path(config: dict, layer: str, path_argument: str | None) -> Path:
         state_path = PROJECT_ROOT / "data" / "state" / f"state_variant_{variant_id}.json"
         if state_path.exists():
             with open(state_path, "r", encoding="utf-8") as file:
-                return PROJECT_ROOT / json.load(file)["last_mart_file"]
+                state_path_value = json.load(file)["last_mart_file"]
+                return PROJECT_ROOT / state_path_value.replace("\\", "/")
         pattern = "mart_daily_*.csv"
     else:
         pattern = "*.csv"

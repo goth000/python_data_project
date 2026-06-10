@@ -24,7 +24,7 @@ def get_mart_path(config: dict, mart_argument: str | None = None) -> Path:
     if state_path.exists():
         with open(state_path, "r", encoding="utf-8") as file:
             state = json.load(file)
-        return PROJECT_ROOT / state["last_mart_file"]
+        return PROJECT_ROOT / state["last_mart_file"].replace("\\", "/")
 
     mart_dir = PROJECT_ROOT / "data" / "mart" / f"variant_{variant_id}"
     mart_files = sorted(mart_dir.glob("mart_daily_*.csv"))

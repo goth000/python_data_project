@@ -1,5 +1,5 @@
 {
-  "dataset": "data\\mart\\variant_06\\mart_daily_2026-05-27_17-55-59.csv",
+  "dataset": "data/mart/variant_06/mart_daily_airflow_20260611T000000.csv",
   "summary": {
     "PASS": 7,
     "WARNING": 0,
