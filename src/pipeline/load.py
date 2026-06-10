@@ -19,6 +19,7 @@ DB_CONFIG = {
 
 
 TABLE_NAME = "mart_open_meteo"
+UNIQUE_INDEX_NAME = "mart_open_meteo_date_city_id_uidx"
 
 
 def load_config(config_path: Path) -> dict:
@@ -47,6 +48,41 @@ def build_connection_string() -> str:
     )
 
 
+def load_dataframe(conn, df: pd.DataFrame, mode: str) -> int:
+    duplicate_count = int(df.duplicated(subset=["date", "city_id"]).sum())
+    if duplicate_count:
+        raise ValueError(f"MART contains duplicate business keys: {duplicate_count}")
+
+    table_exists = inspect(conn).has_table(TABLE_NAME)
+    deleted_rows = 0
+    if mode == "incremental" and table_exists:
+        for city_id in df["city_id"].drop_duplicates():
+            result = conn.execute(
+                text(
+                    f'DELETE FROM "{TABLE_NAME}" '
+                    "WHERE city_id = :city_id AND date BETWEEN :start_date AND :end_date"
+                ),
+                {
+                    "city_id": city_id,
+                    "start_date": df["date"].min(),
+                    "end_date": df["date"].max(),
+                },
+            )
+            deleted_rows += max(result.rowcount, 0)
+        if_exists = "append"
+    else:
+        if_exists = "replace"
+
+    df.to_sql(TABLE_NAME, conn, if_exists=if_exists, index=False)
+    conn.execute(
+        text(
+            f'CREATE UNIQUE INDEX IF NOT EXISTS "{UNIQUE_INDEX_NAME}" '
+            f'ON "{TABLE_NAME}" (date, city_id)'
+        )
+    )
+    return deleted_rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Load MART data into PostgreSQL")
     parser.add_argument("--config", default="configs/variant_06.yml")
@@ -68,6 +104,7 @@ def main() -> None:
     df["date"] = pd.to_datetime(df["date"], errors="raise").dt.date
 
     print("[INFO] shape:", df.shape)
+    print(f"[INFO] load period: {df['date'].min()} -> {df['date'].max()}")
     print("[INFO] columns:", list(df.columns))
     print("[INFO] dtypes:")
     print(df.dtypes)
@@ -79,28 +116,12 @@ def main() -> None:
     print("[INFO] connecting to postgres...")
 
     with engine.begin() as conn:
-        if args.mode == "incremental" and inspect(conn).has_table(TABLE_NAME):
-            for city_id in df["city_id"].drop_duplicates():
-                conn.execute(
-                    text(
-                        f'DELETE FROM "{TABLE_NAME}" '
-                        "WHERE city_id = :city_id AND date BETWEEN :start_date AND :end_date"
-                    ),
-                    {
-                        "city_id": city_id,
-                        "start_date": df["date"].min(),
-                        "end_date": df["date"].max(),
-                    },
-                )
-            if_exists = "append"
-        else:
-            if_exists = "replace"
-
-        df.to_sql(TABLE_NAME, conn, if_exists=if_exists, index=False)
+        deleted_rows = load_dataframe(conn, df, args.mode)
 
     print("[OK] data loaded to postgres")
     print("[OK] table:", TABLE_NAME)
     print("[OK] rows loaded:", len(df))
+    print("[OK] rows deleted before insert:", deleted_rows)
     print("[OK] load mode:", args.mode)
 
 

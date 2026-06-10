@@ -107,6 +107,9 @@ def main() -> None:
     print(f"source: {source_type}")
     print(f"url: {base_url}")
     print(f"status: {status_code}")
+    print(f"period: {params.get('start_date')} -> {params.get('end_date')}")
+    hourly_rows = len(data.get("hourly", {}).get("time", []))
+    print(f"extracted_rows: {hourly_rows}")
     print(f"saved_to: {output_path}")
     print(f"top_level_keys: {list(data.keys())}")
 

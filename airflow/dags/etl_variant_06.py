@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pendulum
 
 from airflow import DAG
@@ -6,17 +8,23 @@ from airflow.operators.bash import BashOperator
 
 PROJECT_DIR = "/opt/airflow/project"
 CONFIG = "configs/variant_06.yml"
-RAW_PATH = "data/raw/variant_06/airflow_{{ ts_nodash }}.json"
-NORMALIZED_PATH = "data/normalized/variant_06/airflow_{{ ts_nodash }}.csv"
-MART_PATH = "data/mart/variant_06/mart_daily_airflow_{{ ts_nodash }}.csv"
+PERIOD_DATE = "{{ data_interval_start | ds }}"
+PERIOD_END = "{{ data_interval_end | ds }}"
+RAW_PATH = f"data/raw/variant_06/raw_{PERIOD_DATE}.json"
+NORMALIZED_PATH = f"data/normalized/variant_06/normalized_{PERIOD_DATE}.csv"
+MART_PATH = f"data/mart/variant_06/mart_{PERIOD_DATE}.csv"
 
 
 with DAG(
     dag_id="etl_variant_06",
-    start_date=pendulum.datetime(2026, 3, 1, tz="UTC"),
-    schedule="*/5 * * * *",
+    start_date=pendulum.datetime(2024, 5, 1, tz="UTC"),
+    schedule="@daily",
     catchup=False,
     max_active_runs=1,
+    default_args={
+        "retries": 2,
+        "retry_delay": timedelta(minutes=1),
+    },
     tags=["etl", "variant_06", "open_meteo"],
 ):
 
@@ -24,8 +32,9 @@ with DAG(
         task_id="extract",
         bash_command=(
             f"cd {PROJECT_DIR} && "
-            "echo '[INFO] Airflow ds={{ ds }}' && "
+            f"echo '[INFO] data interval: {PERIOD_DATE} -> {PERIOD_END}' && "
             f"python src/pipeline/extract.py --config {CONFIG} "
+            f"--start-date '{PERIOD_DATE}' --end-date '{PERIOD_DATE}' "
             f"--output-path '{RAW_PATH}'"
         ),
     )
@@ -34,7 +43,7 @@ with DAG(
         task_id="transform",
         bash_command=(
             f"cd {PROJECT_DIR} && "
-            "echo '[INFO] Airflow ds={{ ds }}' && "
+            f"echo '[INFO] data interval: {PERIOD_DATE} -> {PERIOD_END}' && "
             f"python src/pipeline/normalize.py --config {CONFIG} "
             f"--raw-path '{RAW_PATH}' --output-path '{NORMALIZED_PATH}' && "
             f"python src/pipeline/mart.py --config {CONFIG} "
@@ -46,14 +55,14 @@ with DAG(
         task_id="load",
         bash_command=(
             f"cd {PROJECT_DIR} && "
-            "echo '[INFO] Airflow ds={{ ds }}' && "
+            f"echo '[INFO] data interval: {PERIOD_DATE} -> {PERIOD_END}' && "
             "POSTGRES_HOST=postgres "
             "POSTGRES_PORT=5432 "
             "POSTGRES_DB=analytics "
             "POSTGRES_USER=student "
             "POSTGRES_PASSWORD=student_pw "
             f"python src/pipeline/load.py --config {CONFIG} "
-            f"--mart-path '{MART_PATH}'"
+            f"--mart-path '{MART_PATH}' --mode incremental"
         ),
     )
 
@@ -61,7 +70,7 @@ with DAG(
         task_id="dq",
         bash_command=(
             f"cd {PROJECT_DIR} && "
-            "echo '[INFO] Airflow ds={{ ds }}' && "
+            f"echo '[INFO] data interval: {PERIOD_DATE} -> {PERIOD_END}' && "
             f"python src/pipeline/dq.py --config {CONFIG} "
             f"--mart-path '{MART_PATH}'"
         ),

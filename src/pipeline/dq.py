@@ -218,7 +218,13 @@ def main() -> None:
         print(result)
     save_report(results, mart_path)
 
-    if any(result["status"] == "FAIL" for result in results):
+    summary = {
+        status: sum(result["status"] == status for result in results)
+        for status in ["PASS", "WARNING", "FAIL"]
+    }
+    print(f"[INFO] DQ summary: {summary}")
+
+    if summary["FAIL"]:
         raise SystemExit("[ERROR] Critical DQ checks failed")
 
 
