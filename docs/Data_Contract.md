@@ -250,12 +250,22 @@ conda run -n python_data_project_env python -m src.pipeline.pipeline --config co
 
 ---
 
+В режиме `incremental` пайплайн читает `last_watermark` из state и вычисляет
+начало следующего периода как `last_watermark + 1 день`. Конец периода берётся
+из `api.params.end_date` выбранного конфига. Если новых дат нет, запуск
+завершается без повторного создания артефактов.
+
+При загрузке нового периода строки этого периода удаляются и вставляются заново
+в одной PostgreSQL-транзакции. Исторические периоды не перезаписываются.
+
+---
+
 ## Watermark
 
 Используемый watermark:
 
 ```text
-last_processed_date
+last_watermark
 ```
 
 Пример значения:
@@ -273,6 +283,9 @@ Pipeline сохраняет state:
 ```text
 data/state/state_variant_06.json
 ```
+
+State обновляется атомарно и только после успешного завершения `load`.
+`last_mart_file` сохраняется как относительный путь внутри проекта.
 
 State содержит:
 - watermark;

@@ -1,3 +1,4 @@
+import argparse
 import json
 from datetime import datetime
 from pathlib import Path
@@ -7,7 +8,6 @@ import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CONFIG_PATH = PROJECT_ROOT / "configs" / "variant_06.yml"
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 NORMALIZED_DIR = PROJECT_ROOT / "data" / "normalized"
 
@@ -121,11 +121,21 @@ def save_normalized_csv(df: pd.DataFrame, variant_id: str) -> Path:
 
 
 def main() -> None:
-    config = load_config(CONFIG_PATH)
+    parser = argparse.ArgumentParser(description="Normalize the latest RAW file")
+    parser.add_argument("--config", default="configs/variant_06.yml")
+    parser.add_argument("--raw-path")
+    args = parser.parse_args()
+
+    config_path = PROJECT_ROOT / args.config
+    config = load_config(config_path)
     variant_id = str(config["variant_id"]).zfill(2)
     city_id = config["entity"]["city_id"]
 
-    raw_path = get_latest_raw_file(variant_id)
+    raw_path = (
+        PROJECT_ROOT / args.raw_path
+        if args.raw_path
+        else get_latest_raw_file(variant_id)
+    )
     print(f"[INFO] RAW file: {raw_path}")
 
     data = load_raw_json(raw_path)

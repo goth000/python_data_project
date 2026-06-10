@@ -1,12 +1,12 @@
 {
   "variant_id": "06",
   "source_type": "open_meteo",
-  "mode": "incremental",
+  "mode": "full",
   "last_watermark": "2024-05-07",
   "business_key": [
     "date",
     "city_id"
   ],
-  "last_mart_file": "C:\\Users\\Александр\\PycharmProjects\\python_data_project\\data\\mart\\variant_06\\mart_daily_2026-05-27_18-50-20.csv",
+  "last_mart_file": "data\\mart\\variant_06\\mart_daily_2026-05-27_17-55-59.csv",
   "last_successful_run": "2026-05-27T18:50:20"
 }

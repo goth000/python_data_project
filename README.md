@@ -274,6 +274,22 @@ State хранится в:
 data/state/state_variant_06.json
 ```
 
+Запуск полного режима:
+
+```cmd
+conda run -n python_data_project_env python -m src.pipeline.pipeline --config configs/variant_06.yml --mode full
+```
+
+Запуск инкрементального режима:
+
+```cmd
+conda run -n python_data_project_env python -m src.pipeline.pipeline --config configs/variant_06.yml --mode incremental
+```
+
+`incremental` читает `last_watermark`, запрашивает только даты после него и
+транзакционно заменяет только новый период в PostgreSQL. Если новых дат нет,
+пайплайн завершается без создания новых RAW, NORMALIZED и MART файлов.
+
 ---
 
 # Week 7 — Visualization

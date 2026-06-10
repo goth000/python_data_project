@@ -1,13 +1,13 @@
+import argparse
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-NORMALIZED_DIR = PROJECT_ROOT / "data" / "normalized" / "variant_06"
-MART_DIR = PROJECT_ROOT / "data" / "mart" / "variant_06"
 REFERENCE_PATH = PROJECT_ROOT / "reference" / "cities.csv"
 REFERENCE_COLUMNS = [
     "city_id",
@@ -24,8 +24,14 @@ NORMALIZED_COLUMNS = [
 ]
 
 
-def get_latest_normalized_file() -> Path:
-    files = sorted(NORMALIZED_DIR.glob("*.csv"))
+def load_config(config_path: Path) -> dict:
+    with open(config_path, "r", encoding="utf-8") as file:
+        return yaml.safe_load(file)
+
+
+def get_latest_normalized_file(variant_id: str) -> Path:
+    normalized_dir = PROJECT_ROOT / "data" / "normalized" / f"variant_{variant_id}"
+    files = sorted(normalized_dir.glob("*.csv"))
 
     if not files:
         raise FileNotFoundError("No normalized CSV files found")
@@ -33,8 +39,7 @@ def get_latest_normalized_file() -> Path:
     return files[-1]
 
 
-def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    normalized_path = get_latest_normalized_file()
+def load_data(normalized_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     print("[INFO] normalized file:", normalized_path)
 
@@ -126,11 +131,12 @@ def build_daily_mart(df: pd.DataFrame) -> pd.DataFrame:
     return mart
 
 
-def save_mart(mart: pd.DataFrame) -> Path:
-    MART_DIR.mkdir(parents=True, exist_ok=True)
+def save_mart(mart: pd.DataFrame, variant_id: str) -> Path:
+    mart_dir = PROJECT_ROOT / "data" / "mart" / f"variant_{variant_id}"
+    mart_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
-    output_path = MART_DIR / f"mart_daily_{timestamp}.csv"
+    output_path = mart_dir / f"mart_daily_{timestamp}.csv"
 
     mart.to_csv(output_path, index=False, encoding="utf-8")
 
@@ -138,7 +144,20 @@ def save_mart(mart: pd.DataFrame) -> Path:
 
 
 def main() -> None:
-    df, cities = load_data()
+    parser = argparse.ArgumentParser(description="Build the daily MART")
+    parser.add_argument("--config", default="configs/variant_06.yml")
+    parser.add_argument("--normalized-path")
+    args = parser.parse_args()
+
+    config = load_config(PROJECT_ROOT / args.config)
+    variant_id = str(config["variant_id"]).zfill(2)
+    normalized_path = (
+        PROJECT_ROOT / args.normalized_path
+        if args.normalized_path
+        else get_latest_normalized_file(variant_id)
+    )
+
+    df, cities = load_data(normalized_path)
 
     print("[INFO] normalized rows:", len(df))
     print("[INFO] normalized columns:", list(df.columns))
@@ -158,7 +177,7 @@ def main() -> None:
     print(mart.head())
     print("[INFO] mart shape:", mart.shape)
 
-    output_path = save_mart(mart)
+    output_path = save_mart(mart, variant_id)
 
     print("[OK] Mart saved:", output_path)
 

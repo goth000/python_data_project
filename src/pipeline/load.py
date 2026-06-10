@@ -1,14 +1,13 @@
+import argparse
 from pathlib import Path
 import os
 
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
+import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-MART_DIR = PROJECT_ROOT / "data" / "mart" / "variant_06"
-
 
 DB_CONFIG = {
     "host": os.getenv("POSTGRES_HOST", "localhost"),
@@ -22,8 +21,14 @@ DB_CONFIG = {
 TABLE_NAME = "mart_open_meteo"
 
 
-def get_latest_mart_file() -> Path:
-    files = sorted(MART_DIR.glob("*.csv"))
+def load_config(config_path: Path) -> dict:
+    with open(config_path, "r", encoding="utf-8") as file:
+        return yaml.safe_load(file)
+
+
+def get_latest_mart_file(variant_id: str) -> Path:
+    mart_dir = PROJECT_ROOT / "data" / "mart" / f"variant_{variant_id}"
+    files = sorted(mart_dir.glob("*.csv"))
 
     if not files:
         raise FileNotFoundError("No mart files found")
@@ -43,7 +48,19 @@ def build_connection_string() -> str:
 
 
 def main() -> None:
-    mart_path = get_latest_mart_file()
+    parser = argparse.ArgumentParser(description="Load MART data into PostgreSQL")
+    parser.add_argument("--config", default="configs/variant_06.yml")
+    parser.add_argument("--mart-path")
+    parser.add_argument("--mode", choices=["full", "incremental"], default="full")
+    args = parser.parse_args()
+
+    config = load_config(PROJECT_ROOT / args.config)
+    variant_id = str(config["variant_id"]).zfill(2)
+    mart_path = (
+        PROJECT_ROOT / args.mart_path
+        if args.mart_path
+        else get_latest_mart_file(variant_id)
+    )
 
     print("[INFO] mart file:", mart_path)
 
@@ -62,16 +79,29 @@ def main() -> None:
     print("[INFO] connecting to postgres...")
 
     with engine.begin() as conn:
-        df.to_sql(
-            TABLE_NAME,
-            conn,
-            if_exists="replace",
-            index=False,
-        )
+        if args.mode == "incremental" and inspect(conn).has_table(TABLE_NAME):
+            for city_id in df["city_id"].drop_duplicates():
+                conn.execute(
+                    text(
+                        f'DELETE FROM "{TABLE_NAME}" '
+                        "WHERE city_id = :city_id AND date BETWEEN :start_date AND :end_date"
+                    ),
+                    {
+                        "city_id": city_id,
+                        "start_date": df["date"].min(),
+                        "end_date": df["date"].max(),
+                    },
+                )
+            if_exists = "append"
+        else:
+            if_exists = "replace"
+
+        df.to_sql(TABLE_NAME, conn, if_exists=if_exists, index=False)
 
     print("[OK] data loaded to postgres")
     print("[OK] table:", TABLE_NAME)
     print("[OK] rows loaded:", len(df))
+    print("[OK] load mode:", args.mode)
 
 
 if __name__ == "__main__":
