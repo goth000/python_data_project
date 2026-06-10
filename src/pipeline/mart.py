@@ -9,6 +9,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 NORMALIZED_DIR = PROJECT_ROOT / "data" / "normalized" / "variant_06"
 MART_DIR = PROJECT_ROOT / "data" / "mart" / "variant_06"
 REFERENCE_PATH = PROJECT_ROOT / "reference" / "cities.csv"
+REFERENCE_COLUMNS = [
+    "city_id",
+    "city_name",
+    "country_code",
+    "timezone",
+]
+NORMALIZED_COLUMNS = [
+    "ts",
+    "city_id",
+    "temperature_2m",
+    "precipitation",
+    "wind_speed_10m",
+]
 
 
 def get_latest_normalized_file() -> Path:
@@ -32,11 +45,18 @@ def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def validate_reference(cities: pd.DataFrame) -> None:
-    if "city_id" not in cities.columns:
-        raise ValueError("cities.csv must contain city_id column")
+    missing_columns = [
+        column for column in REFERENCE_COLUMNS if column not in cities.columns
+    ]
+    if missing_columns:
+        raise ValueError(f"cities.csv is missing required columns: {missing_columns}")
 
-    if cities["city_id"].isna().any():
-        raise ValueError("cities.csv contains empty city_id values")
+    null_counts = cities[REFERENCE_COLUMNS].isna().sum()
+    columns_with_nulls = null_counts[null_counts > 0].to_dict()
+    if columns_with_nulls:
+        raise ValueError(
+            f"cities.csv contains empty required values: {columns_with_nulls}"
+        )
 
     if cities["city_id"].duplicated().any():
         duplicates = cities[cities["city_id"].duplicated(keep=False)]
@@ -46,6 +66,12 @@ def validate_reference(cities: pd.DataFrame) -> None:
 
 
 def join_city_reference(df: pd.DataFrame, cities: pd.DataFrame) -> pd.DataFrame:
+    missing_columns = [
+        column for column in NORMALIZED_COLUMNS if column not in df.columns
+    ]
+    if missing_columns:
+        raise ValueError(f"Normalized data is missing required columns: {missing_columns}")
+
     rows_before = len(df)
 
     merged = df.merge(
@@ -63,11 +89,23 @@ def join_city_reference(df: pd.DataFrame, cities: pd.DataFrame) -> pd.DataFrame:
     if rows_before != rows_after:
         raise ValueError("Rows count changed after merge")
 
+    missing_reference = merged[REFERENCE_COLUMNS[1:]].isna().any(axis=1)
+    if missing_reference.any():
+        missing_ids = (
+            merged.loc[missing_reference, "city_id"].drop_duplicates().tolist()
+        )
+        raise ValueError(f"Missing reference data for city_id: {missing_ids}")
+
     return merged
 
 
 def build_daily_mart(df: pd.DataFrame) -> pd.DataFrame:
-    df["ts"] = pd.to_datetime(df["ts"])
+    df = df.copy()
+    df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
+
+    if df["ts"].isna().any():
+        raise ValueError("Normalized data contains invalid timestamps")
+
     df["date"] = df["ts"].dt.date
 
     mart = (
@@ -82,13 +120,16 @@ def build_daily_mart(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
     )
 
+    if mart.empty:
+        raise ValueError("Daily MART is empty")
+
     return mart
 
 
 def save_mart(mart: pd.DataFrame) -> Path:
     MART_DIR.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     output_path = MART_DIR / f"mart_daily_{timestamp}.csv"
 
     mart.to_csv(output_path, index=False, encoding="utf-8")
