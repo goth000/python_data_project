@@ -335,7 +335,7 @@ date + city_id
 - state и watermark обновляются безопасно;
 - повторный incremental запуск сохраняет стабильный результат.
 
-# Week 6 — Data Quality Framework
+# Week 8 — Data Quality Framework
 
 ## Цель
 
@@ -370,7 +370,9 @@ docs/dq_report.json
 
 ## Результат
 
-После каждого запуска pipeline автоматически выполняются DQ проверки и формируется отчет о качестве данных.
+После построения mart pipeline запускает DQ-проверки до загрузки в PostgreSQL.
+Критичный статус FAIL останавливает pipeline, а WARNING сохраняется в отчёте и не блокирует load.
+Правила, допустимые диапазоны и критичность читаются из `configs/variant_06.yml`.
 
 ---
 
@@ -403,7 +405,7 @@ docs/figures/
 
 ---
 
-# Week 8 — State Management и Watermark
+# Week 6 — State Management и Watermark
 
 ## Цель
 

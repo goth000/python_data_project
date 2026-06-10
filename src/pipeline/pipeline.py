@@ -195,6 +195,18 @@ def main() -> None:
     run_step(
         [
             python_executable,
+            "src/pipeline/dq.py",
+            "--config",
+            config_argument,
+            "--mart-path",
+            str(latest_mart.relative_to(PROJECT_ROOT)),
+        ],
+        "data quality",
+    )
+
+    run_step(
+        [
+            python_executable,
             "src/pipeline/load.py",
             "--config",
             config_argument,

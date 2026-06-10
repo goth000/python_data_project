@@ -1,37 +1,52 @@
-[
-  {
-    "check": "non_empty",
-    "status": "PASS",
-    "details": "rows=7"
+{
+  "dataset": "data\\mart\\variant_06\\mart_daily_2026-05-27_17-55-59.csv",
+  "summary": {
+    "PASS": 7,
+    "WARNING": 0,
+    "FAIL": 0
   },
-  {
-    "check": "not_null_date",
-    "status": "PASS",
-    "details": "no nulls"
-  },
-  {
-    "check": "not_null_city_id",
-    "status": "PASS",
-    "details": "no nulls"
-  },
-  {
-    "check": "unique_business_key",
-    "status": "PASS",
-    "details": "no duplicates"
-  },
-  {
-    "check": "temperature_range",
-    "status": "PASS",
-    "details": "all values valid"
-  },
-  {
-    "check": "non_negative_precipitation",
-    "status": "PASS",
-    "details": "all values valid"
-  },
-  {
-    "check": "non_negative_wind",
-    "status": "PASS",
-    "details": "all values valid"
-  }
-]
+  "checks": [
+    {
+      "check": "non_empty",
+      "status": "PASS",
+      "severity": "critical",
+      "details": "rows=7"
+    },
+    {
+      "check": "not_null_date",
+      "status": "PASS",
+      "severity": "critical",
+      "details": "no nulls"
+    },
+    {
+      "check": "not_null_city_id",
+      "status": "PASS",
+      "severity": "critical",
+      "details": "no nulls"
+    },
+    {
+      "check": "unique_business_key",
+      "status": "PASS",
+      "severity": "critical",
+      "details": "no duplicates"
+    },
+    {
+      "check": "temperature_range",
+      "status": "PASS",
+      "severity": "warning",
+      "details": "all values valid (min=-80, max=60)"
+    },
+    {
+      "check": "non_negative_precipitation",
+      "status": "PASS",
+      "severity": "critical",
+      "details": "all values valid (min=0, max=None)"
+    },
+    {
+      "check": "non_negative_wind",
+      "status": "PASS",
+      "severity": "warning",
+      "details": "all values valid (min=0, max=None)"
+    }
+  ]
+}

@@ -48,11 +48,39 @@ kpis:
 - Топ-5 дней по максимальной скорости ветра.
 - Количество часов с осадками > 0 (rainy_hours) по дням.
 dq_rules:
-- ts не NULL, монотонно возрастает внутри одной загрузки.
-- temperature_2m в диапазоне [-80; +60].
-- relative_humidity_2m в диапазоне [0; 100].
-- precipitation >= 0.
-- Дубликаты по (city_id, ts) запрещены.
+- name: non_empty
+  type: non_empty
+  severity: critical
+- name: not_null_date
+  type: not_null
+  column: date
+  severity: critical
+- name: not_null_city_id
+  type: not_null
+  column: city_id
+  severity: critical
+- name: unique_business_key
+  type: unique
+  columns:
+  - date
+  - city_id
+  severity: critical
+- name: temperature_range
+  type: numeric_range
+  column: t_mean
+  min: -80
+  max: 60
+  severity: warning
+- name: non_negative_precipitation
+  type: numeric_range
+  column: precipitation_sum
+  min: 0
+  severity: critical
+- name: non_negative_wind
+  type: numeric_range
+  column: wind_speed_max
+  min: 0
+  severity: warning
 dashboard_questions:
 - Как менялась температура по дням? Есть ли резкие скачки?
 - Сколько было 'дождливых часов' по дням и какие дни лидируют?

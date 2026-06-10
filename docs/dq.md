@@ -1,106 +1,49 @@
 # Data Quality Rules
 
-## Общая информация
+## Проверяемый слой
 
-В проекте реализованы автоматические проверки качества данных (Data Quality checks) для аналитической витрины `mart`.
+DQ-проверки выполняются для аналитической витрины `mart` перед загрузкой в PostgreSQL.
+Скрипт `src/pipeline/dq.py` получает путь к текущей витрине от pipeline или читает его
+из `data/state/state_variant_06.json`.
 
-Проверки выполняются скриптом:
+Правила хранятся в `configs/variant_06.yml` в структурированном блоке `dq_rules`.
+Код читает из конфига тип проверки, поля, допустимые границы и критичность.
 
-```text
-src/pipeline/dq.py
-```
-
-Результат проверок сохраняется в:
-
-```text
-docs/dq_report.json
-```
-
----
-
-# Слой данных
-
-DQ-проверки выполняются для слоя:
-
-```text
-mart
-```
-
-Причина:
-mart является финальным аналитическим слоем, который используется для BI, SQL и визуализаций.
-
----
-
-# Business Key
-
-Business key витрины:
-
-```text
-date + city_id
-```
-
-Каждая комбинация даты и города должна быть уникальной.
-
----
-
-# DQ Rules
-
-| Rule | Severity | Description |
-|---|---|---|
-| non_empty | critical | Витрина не должна быть пустой |
-| not_null_date | critical | Поле `date` не должно содержать NULL |
-| not_null_city_id | critical | Поле `city_id` не должно содержать NULL |
-| unique_business_key | critical | Не должно быть дублей по `date + city_id` |
-| temperature_range | warning | Средняя температура должна быть в диапазоне [-100, 100] |
-| non_negative_precipitation | critical | Осадки не могут быть отрицательными |
-| non_negative_wind | warning | Скорость ветра не может быть отрицательной |
-
----
-
-# Статусы проверок
+## Статусы
 
 | Status | Meaning |
 |---|---|
 | PASS | Проверка успешно пройдена |
-| FAIL | Обнаружена ошибка качества данных |
-| WARNING | Обнаружено потенциально подозрительное значение |
+| WARNING | Найдено мягкое нарушение; pipeline может продолжить работу |
+| FAIL | Найдено критичное нарушение; pipeline останавливается до load |
 
----
+## Правила
 
-# Unit Tests
+| Rule | Severity | Violation |
+|---|---|---|
+| non_empty | critical | Витрина пустая |
+| not_null_date | critical | В `date` есть NULL |
+| not_null_city_id | critical | В `city_id` есть NULL |
+| unique_business_key | critical | Есть дубли по `date + city_id` |
+| temperature_range | warning | `t_mean` вне диапазона `[-80; 60]` °C |
+| non_negative_precipitation | critical | `precipitation_sum < 0` |
+| non_negative_wind | warning | `wind_speed_max < 0` |
 
-Unit tests находятся в:
+Business key витрины: `date + city_id`.
 
-```text
-tests/test_dq.py
+## Запуск и отчёт
+
+```cmd
+conda run -n python_data_project_env python src/pipeline/dq.py
 ```
 
-Тестируются:
+Результат сохраняется в `docs/dq_report.json`. Отчёт содержит проверяемый датасет,
+сводное количество `PASS`, `WARNING`, `FAIL` и детали каждой проверки.
 
-- positive cases;
-- negative cases;
-- boundary cases.
+## Unit Tests
 
----
+Тесты находятся в `tests/test_dq.py` и покрывают позитивный, негативный, граничный
+сценарии, а также различие между `WARNING` и критичным `FAIL`.
 
-# Диагностический пример
-
-Файл:
-
-```text
-broken_assert.py
-```
-
-показывает распространенную ошибку:
-
-```python
-df["x"].notna
-```
-
-без вызова метода:
-
-```python
-df["x"].notna().all()
-```
-
-что приводит к ложному прохождению проверки.
+Диагностический файл `broken_assert.py` показывает, почему `df["x"].notna` без
+скобок даёт ложный PASS и почему нужно использовать `df["x"].notna().all()`.
