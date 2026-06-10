@@ -159,6 +159,8 @@ pandas: ...
 * сохранение RAW JSON;
 * логирование загрузки.
 
+conda run -n python_data_project_env python src/pipeline/extract.py
+
 Основной скрипт:
 
 ```text
