@@ -486,11 +486,20 @@ Metabase подключен к PostgreSQL:
 
 mart_open_meteo
 
-Построены:
+Источник BI — таблица `mart_open_meteo` в PostgreSQL, а не CSV-файл.
+Внутри Compose-сети Metabase подключается к host `postgres`; `localhost`
+используется только для доступа с Windows-хоста.
 
-* табличные отчеты;
-* фильтрация данных;
-* визуальный анализ KPI.
+Проверка persistence выполнена через `docker compose down` и повторный
+`docker compose up -d postgres metabase`: таблица и контрольная строка
+сохранились в `pgdata`. Команда `down -v` не используется, так как она удаляет
+named volumes и данные.
+
+Построены три визуализации:
+
+* Temperature Trend;
+* Rainfall Ranking;
+* Max Temperature.
 
 ## Результат
 

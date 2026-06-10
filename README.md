@@ -427,6 +427,21 @@ pgdata
 metabase_data
 ```
 
+`docker compose stop` останавливает существующие контейнеры, а `start` запускает
+их снова. `docker compose down` удаляет контейнеры и сеть, но сохраняет named
+volumes. Команда `docker compose down -v` дополнительно удаляет volumes и данные.
+
+PostgreSQL доступен локальному Python-коду через `localhost:5432`. Metabase
+работает внутри Compose-сети и подключается к PostgreSQL по имени сервиса
+`postgres:5432`. Dashboard читает таблицу `mart_open_meteo` из PostgreSQL, а не
+CSV-файл.
+
+Проверка persistence и mounts описана в:
+
+```text
+docs/bi/week10_validation.md
+```
+
 ---
 
 # Metabase Dashboard
