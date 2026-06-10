@@ -40,7 +40,7 @@ def fetch_json(url: str, params: dict, timeout: int = 10) -> tuple[dict | None, 
 
 
 def save_raw_json(data: dict, variant_id: str) -> Path:
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     folder_name = f"variant_{variant_id}"
 
     output_dir = RAW_DIR / folder_name
@@ -66,18 +66,13 @@ def main() -> None:
     params = api_config.get("params", {})
     timeout = api_config.get("timeout_sec", 10)
 
-    params["start_date"] = "2024-05-01"
-    params["end_date"] = "2024-05-07"
-
     if method.upper() != "GET":
-        print(f"[ERROR] Unsupported method: {method}")
-        return
+        raise ValueError(f"Unsupported method: {method}")
 
     data, status_code = fetch_json(base_url, params=params, timeout=timeout)
 
     if data is None:
-        print("[ERROR] No data saved")
-        return
+        raise RuntimeError("Extract failed: no data received")
 
     output_path = save_raw_json(data, variant_id)
 
