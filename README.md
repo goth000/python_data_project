@@ -615,6 +615,19 @@ airflow
 airflow
 ```
 
+## Schedule Diagnostics
+
+Диагностический DAG `airflow/dags/broken_dag.py` намеренно использует
+`start_date=datetime.now()`, расписание `@daily` и `catchup=True`. Такой
+`start_date` вычисляется заново при каждом чтении файла, поэтому граница
+планирования постоянно сдвигается. Вместе с `catchup=True` это делает создание
+ожидаемых исторических запусков непредсказуемым.
+
+Исправленный DAG `airflow/dags/fixed_dag.py` использует фиксированный прошедший
+`start_date` в UTC, частое расписание и `catchup=False`. `schedule` определяет
+границы data interval, `start_date` задаёт начало планирования, а `catchup`
+решает, создавать ли пропущенные интервалы между началом и текущим временем.
+
 ---
 
 ## DAG
