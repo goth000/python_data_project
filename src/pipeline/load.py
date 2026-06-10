@@ -48,6 +48,7 @@ def main() -> None:
     print("[INFO] mart file:", mart_path)
 
     df = pd.read_csv(mart_path)
+    df["date"] = pd.to_datetime(df["date"], errors="raise").dt.date
 
     print("[INFO] shape:", df.shape)
     print("[INFO] columns:", list(df.columns))
