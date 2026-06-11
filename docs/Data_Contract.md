@@ -1,566 +1,201 @@
 # Data Contract
 
-**Contract version:** 0.9
+**Contract version:** 1.4
 
 **Variant:** 06
 
 **Source:** Open-Meteo Archive API
 
+**Entity:** Tokyo (`JP_TYO`)
+
 **Timezone:** Asia/Tokyo
 
-## Обзор проекта
+## Общие правила
 
-Проект обрабатывает исторические погодные данные по Токио с использованием Open-Meteo Archive API.
-
-Структура пайплайна:
-
-API → RAW → NORMALIZED → MART → POSTGRES
-
-Проект включает:
-- получение данных через API;
-- нормализацию данных;
-- построение витрины (mart);
-- загрузку в PostgreSQL;
-- SQL-проверки качества данных.
+- колонки используют `snake_case`;
+- идентификаторы заканчиваются на `_id`;
+- RAW хранит исходный ответ без преобразований;
+- NORMALIZED содержит одно почасовое наблюдение города;
+- MART содержит один дневной агрегат города;
+- единицы и timezone не изменяются неявно;
+- обязательные поля не допускают NULL;
+- изменения контракта фиксируются в changelog.
 
 ---
 
-# Week 2 — RAW слой
+## Week 1 — Структура слоев
 
-## Информация об источнике
-
-| поле | значение |
+| Layer | Назначение |
 |---|---|
-| source_type | open_meteo |
-| method | GET |
-| endpoint | https://archive-api.open-meteo.com/v1/archive |
+| `data/raw/` | исходные ответы API |
+| `data/normalized/` | типизированные наблюдения |
+| `data/mart/` | аналитические агрегаты |
+| `data/state/` | watermark и служебное состояние |
 
----
+## Week 2 — RAW
 
-## Информация об объекте анализа
-
-| поле | значение |
+| Property | Value |
 |---|---|
-| city_id | JP_TYO |
-| city_name | Tokyo |
-| country_code | JP |
-| timezone | Asia/Tokyo |
+| Method | GET |
+| Endpoint | `https://archive-api.open-meteo.com/v1/archive` |
+| Period parameters | `start_date`, `end_date` |
+| Coordinates | `35.6762`, `139.6503` |
+| Timezone | `Asia/Tokyo` |
+| Required hourly arrays | temperature, humidity, precipitation, wind |
 
----
+RAW сохраняется как полученный JSON. Одна запись массива `hourly.time`
+соответствует значениям с тем же индексом во всех hourly-массивах.
 
-## Параметры запроса
+## Week 3 — NORMALIZED
 
-| parameter | value |
+Гранулярность: **одно почасовое наблюдение одного города**.
+
+Бизнес-ключ: `city_id + ts`.
+
+| Column | Type | Nullable | Unit | Meaning |
+|---|---|---:|---|---|
+| `ts` | datetime | no | Asia/Tokyo local time | время наблюдения |
+| `temperature_2m` | float | no | °C | температура на высоте 2 м |
+| `relative_humidity_2m` | integer | no | % | относительная влажность |
+| `precipitation` | float | no | mm/hour | осадки за час |
+| `wind_speed_10m` | float | no | km/h | скорость ветра |
+| `city_id` | string | no | none | идентификатор города |
+
+Правила: валидное datetime, numeric conversion, отсутствие NULL, удаление
+дублей по бизнес-ключу, сортировка по `city_id + ts`.
+
+## Week 4 — MART
+
+Гранулярность: **один дневной агрегат одного города**.
+
+Бизнес-ключ: `date + city_id`.
+
+| Column | Type | Nullable | Unit | Meaning |
+|---|---|---:|---|---|
+| `date` | date | no | YYYY-MM-DD | дата агрегации |
+| `city_id` | string | no | none | идентификатор города |
+| `city_name` | string | no | none | название города |
+| `country_code` | string | no | ISO alpha-2 | код страны |
+| `timezone` | string | no | IANA timezone | timezone наблюдений |
+| `t_mean` | float | no | °C | средняя температура за день |
+| `t_max` | float | no | °C | максимальная температура за день |
+| `precipitation_sum` | float | no | mm | сумма осадков за день |
+| `rainy_hours` | integer | no | hours | часы с `precipitation > 0` |
+| `wind_speed_max` | float | no | km/h | максимальный ветер за день |
+
+Join со справочником `reference/cities.csv` выполняется как `many_to_one` по
+`city_id`; число строк после join не должно изменяться.
+
+## Week 5 — PostgreSQL
+
+| Property | Contract |
 |---|---|
-| latitude | 35.6762 |
-| longitude | 139.6503 |
-| start_date | 2024-05-01 |
-| end_date | 2024-05-07 |
-| hourly | temperature_2m, relative_humidity_2m, precipitation, wind_speed_10m |
+| Database | PostgreSQL / `analytics` |
+| Table | `mart_open_meteo` |
+| Business key | `date + city_id` |
+| Full strategy | replace |
+| Incremental strategy | delete period + append in one transaction |
 
----
+Таблица не должна содержать NULL в бизнес-ключе или дубли.
 
-## Timeout
+## Week 6 — State и incremental
 
-| parameter | value |
+Файл `data/state/state_variant_06.json` содержит:
+
+| Field | Meaning |
 |---|---|
-| timeout_sec | 10 |
+| `variant_id` | вариант проекта |
+| `source_type` | тип источника |
+| `mode` | последний режим запуска |
+| `last_watermark` | последняя успешно обработанная дата |
+| `business_key` | ключ MART |
+| `last_mart_file` | относительный путь последнего MART |
+| `last_successful_run` | время успешного завершения |
 
----
+State обновляется атомарно только после успешного DQ и load.
 
-## RAW слой
+## Week 7 — Visualization
 
-Исходные JSON-ответы API сохраняются в:
+Графики используют MART. Временная колонка преобразуется в datetime и
+сортируется по календарному времени. Оси содержат название метрики и единицу.
 
-data/raw/variant_06/YYYY-MM-DD_HH-MM-SS.json
+## Week 8 — Data Quality
 
-RAW слой хранит оригинальный ответ Open-Meteo API без изменений.
+| Rule | Severity | Contract |
+|---|---|---|
+| `non_empty` | critical | MART содержит строки |
+| `not_null_date` | critical | `date` без NULL |
+| `not_null_city_id` | critical | `city_id` без NULL |
+| `unique_business_key` | critical | нет дублей `date + city_id` |
+| `temperature_range` | warning | `t_mean` в `[-80; 60]` °C |
+| `non_negative_precipitation` | critical | `precipitation_sum >= 0` |
+| `non_negative_wind` | warning | `wind_speed_max >= 0` |
 
----
+Критичный FAIL завершает DQ ненулевым кодом и блокирует load.
 
-# Week 3 — NORMALIZED слой
+## Week 9 — Governance
 
-## Normalized Dataset
+Машиночитаемые схемы находятся в `configs/variant_06.yml`.
+`src/pipeline/schema_check.py` проверяет колонки, порядок, типы и nullable.
+Человеко-ориентированные определения находятся в `docs/data_dictionary.md`.
 
-Нормализованные данные строятся из RAW JSON файлов.
+## Week 10 — BI
 
-Файлы сохраняются в:
+Metabase читает `mart_open_meteo` из PostgreSQL, а не CSV. PostgreSQL и
+Metabase используют named volumes; данные должны переживать пересоздание
+контейнеров без `down -v`.
 
-data/normalized/variant_06/YYYY-MM-DD_HH-MM-SS.csv
+## Week 11 — Airflow orchestration
 
----
+Airflow запускает стадии в явно заданном порядке. Каждый task обязан завершаться
+ненулевым кодом при ошибке и писать в лог период, пути и количество строк.
 
-## Гранулярность данных
+## Week 12 — Period-aware execution
 
-Одна строка соответствует одному часу погодных наблюдений в Токио.
-
----
-
-## Схема normalized слоя
-
-| column_name | dtype | nullable | unit | description |
-|---|---|---|---|---|
-| ts | datetime | no | Asia/Tokyo local time | Дата-время измерения |
-| temperature_2m | float | no | °C | Температура воздуха на высоте 2 м |
-| relative_humidity_2m | integer | no | % | Относительная влажность на высоте 2 м |
-| precipitation | float | no | mm | Количество осадков за час |
-| wind_speed_10m | float | no | km/h | Скорость ветра на высоте 10 м |
-| city_id | string | no | none | Идентификатор города |
-
----
-
-## Правила очистки данных
-
-Применяются:
-- преобразование datetime;
-- преобразование numeric типов;
-- удаление дубликатов;
-- проверка пропусков.
-
----
-
-# Week 4 — MART слой
-
-## Mart Dataset
-
-MART слой содержит агрегированные дневные KPI.
-
-Файлы сохраняются в:
-
-data/mart/variant_06/mart_daily_YYYY-MM-DD_HH-MM-SS.csv
-
----
-
-## Гранулярность витрины
-
-Одна строка соответствует одному дню погодных метрик по Токио.
-
----
-
-## Схема mart слоя
-
-| column_name | dtype | nullable | unit | description |
-|---|---|---|---|---|
-| date | date | no | YYYY-MM-DD | Дата дневной агрегации |
-| city_id | string | no | none | Идентификатор города |
-| city_name | string | no | none | Название города |
-| country_code | string | no | ISO 3166-1 alpha-2 | Код страны |
-| timezone | string | no | IANA timezone | Временная зона наблюдений |
-| t_mean | float | no | °C | Средняя температура за день |
-| t_max | float | no | °C | Максимальная температура за день |
-| precipitation_sum | float | no | mm | Суммарное количество осадков за день |
-| rainy_hours | integer | no | hours | Количество часов с осадками |
-| wind_speed_max | float | no | km/h | Максимальная скорость ветра за день |
-
----
-
-## Reference данные
-
-Справочники хранятся в:
-
-reference/
-
-Используемый справочник:
-- cities.csv
-
-Ключ соединения:
-- city_id
-
-Тип merge:
-- many_to_one
-
----
-
-# Week 5 — PostgreSQL слой
-
-## База данных
-
-| поле | значение |
-|---|---|
-| database | PostgreSQL |
-| host | localhost |
-| port | 5432 |
-| database_name | analytics |
-
----
-
-## Загружаемая таблица
-
-| поле | значение |
-|---|---|
-| table_name | mart_open_meteo |
-| load_strategy | replace |
-
----
-
-## SQL-проверки
-
-SQL-проверки хранятся в:
-
-docs/sql_checks.md
-
-Проверки включают:
-- проверку количества строк;
-- проверку диапазона дат;
-- проверку NULL значений;
-- проверку дублей;
-- проверку KPI;
-- проверку идемпотентной загрузки._
-
----
-
-# Week 6 — Pipeline, State и Incremental Processing
-
-## ETL Pipeline
-
-Проект использует ETL pipeline:
+Один DAG run обрабатывает один дневной `data_interval`. RAW, NORMALIZED и MART
+имеют отдельные пути периода. Порядок:
 
 ```text
-Extract → Normalize → Mart → Load
+extract -> transform -> dq -> load
 ```
 
-Pipeline scripts:
+Повтор одного периода заменяет строки этого периода и не создает дублей.
 
-```text
-src/pipeline/extract.py
-src/pipeline/normalize.py
-src/pipeline/mart.py
-src/pipeline/load.py
-src/pipeline/pipeline.py
-```
+## Week 13 — ML dataset
 
----
+Target: `temperature_2m` следующего часа. Target не входит в признаки.
+Данные сортируются по `ts`; train содержит прошлое, test — будущее. Метрики и
+predictions сохраняются в `docs/ml/`.
 
-## Единая точка входа
+## Week 14 — LLM report contract
 
-Pipeline запускается через:
+LLM получает только:
 
-```cmd
-conda run -n python_data_project_env python -m src.pipeline.pipeline --config configs/variant_06.yml --mode full
-```
+- identity набора и период;
+- рассчитанные кодом агрегаты;
+- DQ summary;
+- ограничения на интерпретацию.
 
-или:
-
-```cmd
-conda run -n python_data_project_env python -m src.pipeline.pipeline --config configs/variant_06.yml --mode incremental
-```
+RAW и приватные данные не передаются. Любое число в summary должно существовать
+в `docs/llm/context.json`; иначе validation получает FAIL.
 
 ---
-
-## Инкрементальная обработка
-
-Поддерживаются режимы:
-
-| mode | description |
-|---|---|
-| full | полная переработка данных |
-| incremental | обработка только новых данных |
-
----
-
-В режиме `incremental` пайплайн читает `last_watermark` из state и вычисляет
-начало следующего периода как `last_watermark + 1 день`. Конец периода берётся
-из `api.params.end_date` выбранного конфига. Если новых дат нет, запуск
-завершается без повторного создания артефактов.
-
-При загрузке нового периода строки этого периода удаляются и вставляются заново
-в одной PostgreSQL-транзакции. Исторические периоды не перезаписываются.
-
----
-
-## Watermark
-
-Используемый watermark:
-
-```text
-last_watermark
-```
-
-Пример значения:
-
-```text
-2024-05-07
-```
-
----
-
-## State Pipeline
-
-Pipeline сохраняет state:
-
-```text
-data/state/state_variant_06.json
-```
-
-State обновляется атомарно и только после успешного завершения `load`.
-`last_mart_file` сохраняется как относительный путь внутри проекта.
-
-State содержит:
-- watermark;
-- последний mart файл;
-- время последнего запуска;
-- режим запуска pipeline.
-
----
-
-## Business Key
-
-Business key витрины:
-
-```text
-date + city_id
-```
-
-Каждая комбинация даты и города должна быть уникальной.
-
----
-
-## Идемпотентность
-
-Pipeline реализован идемпотентно:
-- повторный запуск не создает логических дублей;
-- mart пересобирается заново;
-- PostgreSQL использует стратегию `replace`.
-
----
-
-# Week 7 — Visualization и Time Series
-
-## Visualization Layer
-
-Для визуального анализа используется notebook:
-
-```text
-notebooks/week7_viz.ipynb
-```
-
----
-
-## Используемые графики
-
-В проекте реализованы:
-
-| graph_type | description |
-|---|---|
-| time series | изменение температуры во времени |
-| histogram | распределение средней температуры |
-| ranking bar chart | ranking осадков по дням |
-
----
-
-## Time Handling
-
-Перед построением графиков колонка `date` преобразуется:
-
-```python
-pd.to_datetime(df["date"])
-```
-
-Это необходимо для корректной сортировки временной оси.
-
----
-
-## Timezone
-
-Все временные данные интерпретируются в timezone:
-
-```text
-Asia/Tokyo
-```
-
----
-
-## Visualization Outputs
-
-PNG графики сохраняются в:
-
-```text
-docs/figures/
-```
-
----
-
-# Week 8 — Data Quality
-
-## DQ Layer
-
-В проекте реализованы автоматические проверки качества данных.
-
-DQ module:
-
-```text
-src/pipeline/dq.py
-```
-
----
-
-## DQ Report
-
-Результаты проверок сохраняются в:
-
-```text
-docs/dq_report.json
-```
-
----
-
-## Реализованные DQ Checks
-
-| check_name | description |
-|---|---|
-| non_empty | витрина не должна быть пустой |
-| not_null_date | поле date не должно содержать NULL |
-| not_null_city_id | поле city_id не должно содержать NULL |
-| unique_business_key | отсутствуют дубли по business key |
-| temperature_range | температура находится в допустимом диапазоне |
-| non_negative_precipitation | осадки не отрицательные |
-| non_negative_wind | скорость ветра не отрицательная |
-
----
-
-## Unit Tests
-
-Для DQ проверок реализованы unit tests:
-
-```text
-tests/test_dq.py
-```
-
-Тестируются:
-- positive cases;
-- negative cases;
-- boundary cases.
-
----
-
-## Diagnostic Example
-
-Файл:
-
-```text
-broken_assert.py
-```
-
-демонстрирует ошибку использования:
-
-```python
-df["x"].notna
-```
-
-вместо:
-
-```python
-df["x"].notna().all()
-```
-
----
-
-# Week 9 — Data Governance
 
 ## Changelog
 
-| version | date | change | reason |
-|---|---|---|---|
-| 0.1 | 2026-03 | Initial raw layer | Preserve source responses |
-| 0.2 | 2026-03 | Added normalized schema | Define typed hourly observations |
-| 0.3 | 2026-03 | Added mart schema | Support daily analytics |
-| 0.4 | 2026-04 | Added PostgreSQL layer | Make mart queryable |
-| 0.5 | 2026-04 | Added incremental processing | Process only new dates |
-| 0.6 | 2026-04 | Documented visualization layer | Explain analytical outputs |
-| 0.7 | 2026-04 | Added DQ checks | Detect invalid data automatically |
-| 0.8 | 2026-04 | Added unit tests | Verify DQ functions |
-| 0.9 | 2026-04 | Added complete schemas and governance rules | Keep contract and code aligned |
-
----
-
-## Naming Rules
-
-Используются следующие naming conventions:
-
-| rule | description |
-|---|---|
-| snake_case | все колонки используют snake_case |
-| *_id | идентификаторы заканчиваются на `_id` |
-| date | дата хранится в поле `date` |
-| запрещены value/metric1 | запрещены неоднозначные названия |
-| KPI naming | KPI используют понятное имя метрики и агрегирующий суффикс: `_mean`, `_sum`, `_max`, `_hours` |
-
----
-
-## Units and Semantics
-
-| column | unit |
-|---|---|
-| temperature_2m | °C |
-| t_mean | °C |
-| t_max | °C |
-| precipitation | mm |
-| precipitation_sum | mm |
-| wind_speed_10m | km/h |
-| wind_speed_max | km/h |
-| relative_humidity_2m | % |
-
----
-
-## Timezone Rules
-
-Все временные данные проекта используют timezone:
-
-```text
-Asia/Tokyo
-```
-
-Timezone фиксируется в:
-- API запросах;
-- normalized слое;
-- mart слое;
-- визуализациях;
-- SQL проверках.
-
----
-
-## Data Dictionary
-
-Человеко-ориентированное описание колонок хранится в:
-
-```text
-docs/data_dictionary.md
-```
-
----
-
-## Contract vs Code Validation
-
-Соответствие схемы и кода проверяется:
-- вручную;
-- через DQ проверки;
-- через unit tests;
-- через `src/pipeline/schema_check.py`, который читает схемы из `configs/variant_06.yml`
-  и проверяет названия, порядок, типы и nullable для normalized и mart.
-
----
-
-## Governance Risks
-
-Типичные риски:
-- ошибки единиц измерения;
-- неправильная интерпретация timezone;
-- silent schema changes;
-- несогласованные названия колонок;
-- расхождение контракта и pipeline кода.
-
----
-
-## Units Conversion Validation
-
-Файл:
-
-```text
-broken_units.py
-```
-
-демонстрирует ошибку преобразования единиц измерения и защиту через:
-
-```python
-assert
-```
+| Version | Week | Change |
+|---|---:|---|
+| 0.1 | 1 | создана структура слоев |
+| 0.2 | 2 | добавлен RAW API contract |
+| 0.3 | 3 | добавлена NORMALIZED schema |
+| 0.4 | 4 | добавлена MART schema и join cardinality |
+| 0.5 | 5 | добавлен PostgreSQL contract |
+| 0.6 | 6 | добавлены state и incremental правила |
+| 0.7 | 7 | добавлены правила визуализации времени |
+| 0.8 | 8 | добавлены DQ rules и severity |
+| 0.9 | 9 | добавлены governance и schema validation |
+| 1.0 | 10 | добавлен BI contract |
+| 1.1 | 11 | добавлен Airflow task contract |
+| 1.2 | 12 | добавлен period-aware и retry-safe contract |
+| 1.3 | 13 | добавлен ML dataset contract |
+| 1.4 | 14 | добавлен проверяемый LLM report contract |
