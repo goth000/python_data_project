@@ -1,0 +1,35 @@
+{
+  "dataset_identity": {
+    "variant_id": "06",
+    "source": "open_meteo",
+    "city_id": "JP_TYO",
+    "city_name": "Токио",
+    "timezone": "Asia/Tokyo",
+    "period_start": "2024-05-01",
+    "period_end": "2024-05-07",
+    "row_count": 7,
+    "row_meaning": "one daily weather aggregate for one city"
+  },
+  "computed_metrics": {
+    "temperature_mean_c": 18.01,
+    "temperature_min_c": 14.76,
+    "temperature_max_c": 20.02,
+    "precipitation_total_mm": 59.7,
+    "rainy_hours_total": 39,
+    "max_wind_speed_kmh": 50.0,
+    "max_wind_date": "2024-05-07",
+    "wettest_date": "2024-05-01",
+    "wettest_day_precipitation_mm": 37.3
+  },
+  "quality_status": {
+    "PASS": 7,
+    "WARNING": 0,
+    "FAIL": 0
+  },
+  "constraints": [
+    "Use only the provided computed metrics.",
+    "Do not invent or calculate new numbers.",
+    "If the context is insufficient, state that it is insufficient.",
+    "Treat explanations of causes as hypotheses, not facts."
+  ]
+}

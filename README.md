@@ -50,6 +50,8 @@ data/
 docs/
 ├── bi/                  скриншоты BI dashboard
 ├── figures/             графики визуализации
+├── llm/                 проверяемая LLM-сводка и контекст
+├── ml/                  ML-метрики и прогнозы
 ├── Data_Contract.md
 ├── Implementation_Plan.md
 ├── LLM_Usage_Log.md
@@ -77,8 +79,14 @@ src/pipeline/
 ├── schema_check.py
 └── pipeline.py
 
+src/analytics/
+├── week13_ml.py
+└── llm_summary.py
+
 tests/
 ├── test_dq.py
+├── test_week13_ml.py
+└── test_llm_summary.py
 
 docker-compose.yml
 requirements.txt
@@ -513,37 +521,22 @@ broken_units.py
 
 # Running The Project
 
-Полный запуск ETL:
+Подготовка окружения:
 
 ```cmd
-conda run -n python_data_project_env python src/pipeline/pipeline.py
+scripts\setup_env.bat
 ```
 
-Загрузка в PostgreSQL:
+Финальный воспроизводимый сценарий:
 
 ```cmd
-conda run -n python_data_project_env python src/pipeline/load.py
+scripts\final_run.bat
 ```
 
-DQ проверки:
+Скрипт автоматически запускает и ожидает PostgreSQL, затем последовательно
+выполняет full pipeline, ML-анализ, проверяемую LLM-сводку и тесты.
 
-```cmd
-conda run -n python_data_project_env python src/pipeline/dq.py
-```
-
-Schema validation:
-
-```cmd
-conda run -n python_data_project_env python src/pipeline/schema_check.py
-```
-
-Pytest:
-
-```cmd
-conda run -n python_data_project_env python -m pytest
-```
-
-Docker:
+BI и Airflow:
 
 ```cmd
 docker compose up -d
@@ -807,3 +800,21 @@ metrics.csv
 predictions.png
 metrics.png
 ```
+
+## Week 14 — Verifiable LLM Summary
+
+LLM используется только как интерпретационный слой после pipeline, DQ, BI и
+ML. Скрипт `src/analytics/llm_summary.py` кодом рассчитывает агрегаты из MART,
+добавляет DQ summary и сохраняет ограниченный контекст:
+
+```text
+docs/llm/context.json
+```
+
+Offline-сводка сохраняется в `docs/llm/summary.md`. Валидатор проверяет, что в
+ней отсутствуют числа, которых нет в рассчитанном контексте, и сохраняет
+результат в `docs/llm/validation.json`.
+
+Настоящий API-ключ не требуется и не хранится в репозитории. Для возможной
+будущей интеграции предоставлен `.env.example`; реальные значения должны
+находиться только в игнорируемом `.env`.

@@ -54,12 +54,12 @@ def load_state(variant_id: str) -> dict:
 
 
 def get_latest_file(directory: Path, pattern: str) -> Path:
-    files = sorted(directory.glob(pattern))
+    files = list(directory.glob(pattern))
 
     if not files:
         raise FileNotFoundError(f"No files matching {pattern} found in {directory}")
 
-    return files[-1]
+    return max(files, key=lambda path: path.stat().st_mtime_ns)
 
 
 def get_watermark_from_mart(mart_path: Path) -> str:

@@ -184,11 +184,12 @@ def run_rule(df: pd.DataFrame, rule: dict) -> dict:
 def save_report(results: list[dict], mart_path: Path) -> None:
     try:
         dataset_path = mart_path.relative_to(PROJECT_ROOT)
+        dataset_value = dataset_path.as_posix()
     except ValueError:
-        dataset_path = mart_path
+        dataset_value = str(mart_path)
 
     report = {
-        "dataset": str(dataset_path),
+        "dataset": dataset_value,
         "summary": {
             status: sum(result["status"] == status for result in results)
             for status in ["PASS", "WARNING", "FAIL"]

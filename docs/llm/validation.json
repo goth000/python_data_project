@@ -1,0 +1,21 @@
+{
+  "status": "PASS",
+  "unexpected_numeric_tokens": [],
+  "missing_sections": [],
+  "allowed_numeric_tokens": [
+    "-01",
+    "-05",
+    "-07",
+    "0",
+    "06",
+    "14.76",
+    "18.01",
+    "20.02",
+    "2024",
+    "37.3",
+    "39",
+    "50.0",
+    "59.7",
+    "7"
+  ]
+}
